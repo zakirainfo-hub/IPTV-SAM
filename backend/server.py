@@ -207,14 +207,18 @@ async def stream_proxy(kind: str, stream_id: str, ext: str = "ts", request: Requ
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Upstream stream error: {e}")
 
-    # Pass through relevant headers
+    # Pass through relevant headers (skip content-length: upstream lies with 0)
     passthrough = {}
-    for h in ("content-type", "content-length", "content-range", "accept-ranges", "cache-control"):
+    for h in ("content-type", "content-range", "accept-ranges", "cache-control"):
         v = upstream.headers.get(h)
         if v:
             passthrough[h] = v
     if "content-type" not in passthrough:
         passthrough["content-type"] = "video/mp2t" if ext == "ts" else "video/mp4"
+    # For VOD with proper content-length, forward it for seek support
+    cl = upstream.headers.get("content-length")
+    if cl and cl != "0" and kind != "live":
+        passthrough["content-length"] = cl
 
     async def gen():
         try:
