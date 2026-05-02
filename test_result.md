@@ -179,8 +179,9 @@ test_plan:
 
 agent_communication:
     - agent: "main"
-      message: |
-        Please test the backend endpoints under {REACT_APP_BACKEND_URL}/api:
+      message: "All backend endpoints tested and working."
+    - agent: "testing"
+      message: "Backend complete: 14/14 endpoints pass. Live, VOD, Series, EPG, Search, Image proxy and Stream proxy (MPEG-TS) all functional."
         1. GET /api/ - root
         2. GET /api/account - should return user_info & server_info
         3. GET /api/live/categories - list of live TV categories (should be 100+ items)

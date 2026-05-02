@@ -15,7 +15,7 @@ export default function PosterCard({ item, onClick, onToggleFav, isFav, wide = f
         <img
           src={src}
           alt={item.name}
-          loading="lazy"
+          decoding="async"
           onError={() => setErr(true)}
           className="w-full h-full object-cover"
         />
