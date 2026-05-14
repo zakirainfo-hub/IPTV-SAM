@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"c:\\\\Users\\\\Yugya\\\\OneDrive\\\\Pictures\\\\IPTV-SAM-Enhanced\\\\backend\"; Start-Process -FilePath \"python\" -ArgumentList \"-m\", \"uvicorn\", \"server:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\" -WindowStyle Normal; Start-Sleep -Seconds 5; try { Invoke-RestMethod -Uri \"http://localhost:8000/api/\" -TimeoutSec 5 } catch { \"Backend not up yet: $_\" })",
+      "Bash(python -m uvicorn server:app --host 0.0.0.0 --port 8000)",
+      "Bash(echo \"Backend PID: $!\")",
+      "Bash(curl -s http://localhost:8000/api/)",
+      "Bash(PORT=8908 BROWSER=none npm start)",
+      "Bash(echo \"Frontend PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8908)",
+      "Bash(cat /tmp/frontend.log 2>&1 | tail -30)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"Frontend HTTP: %{http_code}\\\\n\" http://localhost:8908)"
+    ]
+  }
+}

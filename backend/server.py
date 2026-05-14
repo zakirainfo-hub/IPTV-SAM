@@ -14,10 +14,14 @@ import httpx
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB (optional — not required for core IPTV proxy functionality)
+mongo_url = os.environ.get('MONGO_URL', '')
+if mongo_url:
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[os.environ.get('DB_NAME', 'iptv')]
+else:
+    client = None
+    db = None
 
 # Xtream config
 XTREAM_HOST = os.environ.get('XTREAM_HOST', '').rstrip('/')
@@ -37,8 +41,23 @@ _client: Optional[httpx.AsyncClient] = None
 def get_client() -> httpx.AsyncClient:
     global _client
     if _client is None:
-        _client = httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True)
+        timeout = httpx.Timeout(connect=15.0, read=90.0, write=15.0, pool=15.0)
+        limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        _client = httpx.AsyncClient(timeout=timeout, limits=limits, follow_redirects=True)
     return _client
+
+
+STREAM_CONTENT_TYPES = {
+    "ts": "video/mp2t",
+    "m2ts": "video/mp2t",
+    "mp4": "video/mp4",
+    "m4v": "video/mp4",
+    "mov": "video/quicktime",
+    "mkv": "video/x-matroska",
+    "webm": "video/webm",
+    "avi": "video/x-msvideo",
+    "m3u8": "application/vnd.apple.mpegurl",
+}
 
 
 async def xtream_call(action: Optional[str] = None, **params) -> Any:
@@ -187,10 +206,11 @@ async def stream_proxy(kind: str, stream_id: str, ext: str = "ts", request: Requ
     if kind not in ("live", "movie", "series"):
         raise HTTPException(status_code=400, detail="Invalid kind")
 
-    upstream_url = f"{XTREAM_HOST}/{kind}/{XTREAM_USER}/{XTREAM_PASS}/{stream_id}.{ext}"
+    clean_ext = (ext or "ts").lower().lstrip(".")
+    upstream_url = f"{XTREAM_HOST}/{kind}/{XTREAM_USER}/{XTREAM_PASS}/{stream_id}.{clean_ext}"
 
     # Forward Range headers for VOD seeking
-    headers = {}
+    headers = {"Accept": "*/*", "Connection": "keep-alive"}
     if request is not None:
         rng = request.headers.get("range")
         if rng:
@@ -209,20 +229,26 @@ async def stream_proxy(kind: str, stream_id: str, ext: str = "ts", request: Requ
 
     # Pass through relevant headers (skip content-length: upstream lies with 0)
     passthrough = {}
-    for h in ("content-type", "content-range", "accept-ranges", "cache-control"):
+    for h in ("content-range", "accept-ranges"):
         v = upstream.headers.get(h)
         if v:
             passthrough[h] = v
-    if "content-type" not in passthrough:
-        passthrough["content-type"] = "video/mp2t" if ext == "ts" else "video/mp4"
+    upstream_content_type = upstream.headers.get("content-type", "")
+    if upstream_content_type and upstream_content_type.lower() != "application/octet-stream":
+        passthrough["content-type"] = upstream_content_type
+    else:
+        passthrough["content-type"] = STREAM_CONTENT_TYPES.get(clean_ext, "application/octet-stream")
+    passthrough["cache-control"] = "no-store" if kind == "live" else upstream.headers.get("cache-control", "public, max-age=3600")
+    passthrough["x-accel-buffering"] = "no"
     # For VOD with proper content-length, forward it for seek support
     cl = upstream.headers.get("content-length")
     if cl and cl != "0" and kind != "live":
         passthrough["content-length"] = cl
+    chunk_size = 256 * 1024 if kind == "live" else 512 * 1024
 
     async def gen():
         try:
-            async for chunk in upstream.aiter_bytes(chunk_size=64 * 1024):
+            async for chunk in upstream.aiter_bytes(chunk_size=chunk_size):
                 yield chunk
         finally:
             await upstream.aclose()
@@ -269,7 +295,14 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client is not None:
+        client.close()
     global _client
     if _client is not None:
         await _client.aclose()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("server:app", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))

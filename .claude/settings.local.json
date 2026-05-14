@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version)",
+      "Bash(yarn --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/api/\" -TimeoutSec 5 2>&1)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue)",
+      "PowerShell(pip install httpx 2>&1)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}
