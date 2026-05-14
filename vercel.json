@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "cd frontend && npm run build",
+  "buildCommand": "cd frontend && yarn build",
   "outputDirectory": "frontend/build",
-  "installCommand": "cd frontend && npm install --legacy-peer-deps",
+  "installCommand": "corepack enable && cd frontend && yarn install",
   "framework": null,
   "rewrites": [
     {
